@@ -10,7 +10,7 @@ Purpose:
 
 Hardware:
 --> Atmos Lab V3 board
---> Sensors used: BMV080, INA3221, BME680, u-blox GNSS
+--> Sensors used: Adafruit Stemma Soil Sensor, INA3221, BME680
 */ 
 
 #include <Wire.h>
