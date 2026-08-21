@@ -1,5 +1,5 @@
 /*
-Author: Kpask
+Author: PaskKat
 Date: 8/16/2026
 Board in Arduino IDE: Arduino Zero (Native USB)
 
