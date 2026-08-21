@@ -22,11 +22,14 @@ V1 is currently under devlopment. Its purpose is to transition the existing UCSC
 Reference below, the architecture of V1 using LoRa via the RadioLib Library.
 
 Sink State Machine:
+
 ![v1 Cluster Head State Machine](miscellaneous/v1Sink.png)
 
 Cluster Head State Machine:
+
 ![v1 Sink State Machine](miscellaneous/v1ClusterHead.png)
 
 Sensor Node State Machine:
+
 ![v1 Sensor Node State Machine](miscellaneous/v1SensorNode.png)
 ***
