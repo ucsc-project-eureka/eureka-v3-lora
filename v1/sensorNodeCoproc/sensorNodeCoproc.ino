@@ -1,5 +1,5 @@
 /*
-Author: Kpask
+Author: PaskKat
 Date: 8/16/2026
 Board in Arduino IDE: Arduino Zero (Native USB)
 
@@ -9,7 +9,7 @@ Purpose:
 
 Hardware:
 --> Atmos Lab V3 board
---> Sensors used: BMV080, INA3221, BME680, u-blox GNSS
+--> Sensors used: BME680, Adafruit Stemma Soil Sensor
 */ 
 
 #include <Wire.h>
@@ -18,19 +18,15 @@ Hardware:
 
 // MODS
 #include <Adafruit_seesaw.h>
-Adafruit_seesaw ss;             // Soil sensor.
-#include <Adafruit_INA3221.h>
 #include "Adafruit_BME680.h"
-#include "SparkFun_u-blox_GNSS_Arduino_Library.h" // for M10S GPS interfacing.
 
 // Other setup pinouts --------------------------------------
-// Use DEBUG_PORT for the Native Port
+
 #define DEBUG_PORT SerialUSB
 #define ESP_PORT Serial1
 
 #define ESP_BAUD 9600
 
-SFE_UBLOX_GNSS myGNSS;
 #define SOIL_I2C 0x36
 
 #define BME_SCK 13
@@ -38,17 +34,13 @@ SFE_UBLOX_GNSS myGNSS;
 #define BME_MOSI 11
 #define BME_CS 10
 
-// From Airwise's ESP32 UART connections.
-#define ESP_PIN_TX 43
-#define ESP_PIN_RX 44
-
 // Reference values for sensor data processing.
 #define SEALEVELPRESSURE_HPA (1013.25)
 
 // Reference all appropriate fields.
 #define wirePort Wire               // I2C Bus port name.
 Adafruit_BME680 bme(&wirePort);     // I2C
-Adafruit_INA3221 ina3221;
+Adafruit_seesaw ss;                 // Soil sensor.
 
 // Packet definitions
 enum messageType : uint8_t {
@@ -91,7 +83,7 @@ void setup(){
   // initialize the sensors.
   Wire.begin();
   bme.begin();
-  // ss.begin(SOIL_I2C); 
+  ss.begin(SOIL_I2C); 
   
   startTime = millis();
   return;
@@ -114,14 +106,11 @@ void loop(){
     // NOTE: this assumes parsing on the other side will pick up string data sent in this format.
     ESP_PORT.println("SENSOR_DATA:");
 
-    // get latest bme data.
+    // get latest data.
     bme.performReading();
     myData.temperature = bme.temperature;
     myData.humidity = bme.humidity;
-    
-    // myData.soilMoisture = ss.touchRead(0); // Soil monitor not connected during testing, but if not hardcoded use this.
-    // Soil moisture dummy value:
-    myData.soilMoisture = 500;
+    myData.soilMoisture = ss.touchRead(0); 
 
     myData.timestamp = currentTime;
     ESP_PORT.println(myData.temperature);
