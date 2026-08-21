@@ -10,7 +10,7 @@ Purpose:
 
 Hardware:
 --> Atmos Lab V3 board
---> Sensors used: BMV080, INA3221, BME680, u-blox GNSS
+--> Sensors used: Adafruit Stemma Soil Sensor, INA3221, BME680
 */ 
 
 #include <Wire.h>
@@ -264,7 +264,7 @@ void setup(){
   ina3221.begin();
   bme.begin();
   
-  // ss.begin(SOIL_I2C);
+  ss.begin(SOIL_I2C);
   DEBUG_PORT.begin(115200);
   while(!DEBUG_PORT);
   DEBUG_PORT.println("Debug serial initialized!");
@@ -306,8 +306,8 @@ void loop(){
 
     // Capacitive reading is the one for overall soil moisture.
     // dummy value holds.
-    // uint16_t moisture = ss.touchRead(0);
-    uint16_t moisture = 500; // dummy value.
+    uint16_t moisture = ss.touchRead(0);
+    // uint16_t moisture = 500; // dummy value.
 
     DEBUG_PORT.print("Soil Moisture = ");
     DEBUG_PORT.println(moisture);
