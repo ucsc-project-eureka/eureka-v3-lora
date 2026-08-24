@@ -1,7 +1,7 @@
 /*
 Author: PaskKat
 Date: 8/24/2026
-Board in Arduino IDE: ESP32 s3 Dev Module
+Board in Arduino IDE: ESP32 S3 Dev Module
 
 Purpose: 
 --> Send testing pings via LoRa and RadioLib to test signal range
@@ -53,6 +53,7 @@ void initializeRadio(void){
   digitalWrite(36, LOW);
   int startTime = millis();
   while(millis() - startTime <= RADIO_INIT_TIMEOUT);
+
   // open SPI connection between ESP32-v3 Heltec microcontroller and SX1262 IC.
   SPI.begin(LORA_SCK, LORA_MISO, LORA_MOSI, LORA_NSS);
 
@@ -64,17 +65,14 @@ void initializeRadio(void){
 
 // MAIN ---------------------------------------------------------------------
 
+// Globals
 testPacket myPacket;
-// Allow for timer functionalities without delay() cost.
 uint32_t lastSendTime;
 
 void setup() {
-
   DEBUG_PORT.begin(9600);
   while(!DEBUG_PORT);
-  DEBUG_PORT.println("DEBUG SET");
   initializeRadio();
-
   lastSendTime = millis();
 }
 
@@ -82,7 +80,6 @@ void loop(){
   // transmit every TX_TIMEOUT
   if (millis() - lastSendTime > TX_TIMEOUT){
     myPacket.roundCount++;
-
     DEBUG_PORT.printf("\n[SX1262] Sending TEST round: %lu", myPacket.roundCount);
     // using blocking transmit function, ie. it will execute and cleanup (and will not proceed until finished)
     radio.transmit((uint8_t*)&myPacket,sizeof(testPacket));
