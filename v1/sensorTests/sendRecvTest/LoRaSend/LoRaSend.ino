@@ -16,7 +16,7 @@ Hardware:
 
 #define DEBUG_PORT Serial
 
-#define RADIO_INIT_TIMEOUT 50
+#define RADIO_INIT_TIMEOUT 1000
 #define TX_TIMEOUT 5000
 
 // Heltec V3 Pin Mappings
@@ -57,9 +57,9 @@ void initializeRadio(void){
   // open SPI connection between ESP32-v3 Heltec microcontroller and SX1262 IC.
   SPI.begin(LORA_SCK, LORA_MISO, LORA_MOSI, LORA_NSS);
 
-  // initialize SX1262 at 434 MHz
+  // initialize SX1262 at 915 MHz
   DEBUG_PORT.println("[SX1262] Initializing ... ");
-  int state = radio.begin(434);
+  int state = radio.begin(915.0, 125.0, 9, 7, 0x12, 10, 8, 1.6);
   DEBUG_PORT.println("Initialized to 434 Mhz!");
 }
 
@@ -70,7 +70,7 @@ testPacket myPacket;
 uint32_t lastSendTime;
 
 void setup() {
-  DEBUG_PORT.begin(9600);
+  DEBUG_PORT.begin(115200);
   while(!DEBUG_PORT);
   initializeRadio();
   lastSendTime = millis();
