@@ -17,7 +17,7 @@ Hardware:
 #define DEBUG_PORT Serial
 
 #define RADIO_INIT_TIMEOUT 1000
-#define TX_TIMEOUT 5000
+#define TX_TIMEOUT 500
 
 // Heltec V3 Pin Mappings
 #define LORA_NSS   8
