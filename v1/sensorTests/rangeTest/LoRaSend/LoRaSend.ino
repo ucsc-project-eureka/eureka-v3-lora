@@ -39,7 +39,7 @@ enum{
 };
 
 struct testPacket{
-  uint32_t type = TEST_DATA;
+  uint8_t type = TEST_DATA;
   uint32_t roundCount = 0;
 };
 

@@ -17,9 +17,6 @@ Hardware:
 #define DEBUG_PORT Serial
 
 #define RADIO_INIT_TIMEOUT 1000
-// #define SENSOR_DATA_LENGTH 20
-// #define AGG_DATA_LENGTH 255
-// #define BEACON_LENGTH 20
 
 // Heltec V3 Pin Mappings
 #define LORA_NSS   8
@@ -41,8 +38,8 @@ enum{
 };
 
 struct testPacket{
-  uint32_t type = TEST_DATA;
-  uint32_t roundCount = 0;
+  uint8_t type = TEST_DATA;
+  unsigned long roundCount = 0;
 };
 
 // Globals
@@ -65,7 +62,7 @@ void initializeRadio(void){
   while(millis() - startTime <= RADIO_INIT_TIMEOUT);
 
   // open SPI connection between ESP32-v3 Heltec microcontroller and SX1262 IC.
-  SPI.begin(LORA_SCK, LORA_MISO, LORA_MOSI, LORA_NSS);
+  SPI.begin(LORA_SCK,LORA_MISO, LORA_MOSI, LORA_NSS);
 
   // initialize SX1262 at 434 MHz
   DEBUG_PORT.println("[SX1262] Initializing ... ");
@@ -74,12 +71,11 @@ void initializeRadio(void){
 }
 
 // Given the received buffer, determine the type of packet based off first 4 bytes.
-uint32_t getPacketType(uint8_t recvPacket[]){
-  uint32_t pktType;
-  memcpy(&pktType,&recvPacket[0],sizeof(uint32_t));
+uint8_t getPacketType(uint8_t recvPacket[]){
+  uint8_t pktType;
+  memcpy(&pktType,&recvPacket[0],sizeof(uint8_t));
   return pktType;
 }
-
 // MAIN ---------------------------------------------------------------------
 
 void setup() {
