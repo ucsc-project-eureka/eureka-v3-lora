@@ -119,7 +119,6 @@ dataPacket_t dataPacket;
 unsigned long sinkRoundCount = 0;
 unsigned long beaconTime;
 unsigned long jitter;
-bool sentPacket = false;
 
 // Helpers ------------------------------------------------------------------
 
@@ -172,7 +171,7 @@ void getDataFromCoproc(void){
   COPROC_PORT.println("SENSOR_DATA");
   // Wait a period to recieve data back. Wait for coproc to respond.
   while(!(COPROC_PORT.available()));
-  if (COPROC_PORT.available() && !sentPacket) {
+  if (COPROC_PORT.available()) {
     String header = COPROC_PORT.readStringUntil('\n');
     header.trim();
     if (header == "SENSOR_DATA:") {
