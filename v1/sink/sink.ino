@@ -5,7 +5,7 @@ Board in Arduino IDE: ESP32 S3 Dev Module
 
 Purpose: 
 --> Receive and upload aggregate data packets to server.
---> Transmit a beacon for a detemrined amount of wait time to initiate data aggregation.
+--> Transmit a beacon for a determined amount of wait time to initiate data aggregation.
 
 Hardware:
 --> Atmos Lab V3 board, or Heltec v3 ESP32-SX1262

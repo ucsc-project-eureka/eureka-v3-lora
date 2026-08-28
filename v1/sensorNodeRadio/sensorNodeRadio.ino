@@ -5,7 +5,7 @@ Board in Arduino IDE: ESP32 S3 Dev Module
 
 Purpose: 
 --> Receive give-data commands and query sensor node coproc for sensor data.
---> Transmit a beacon for a detemrined amount of wait time to initiate data aggregation.
+--> Transmit back to the parent the data it collected.
 
 Hardware:
 --> Atmos Lab V3 board, or Heltec v3 ESP32-SX1262
