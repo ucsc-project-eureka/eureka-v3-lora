@@ -1,6 +1,6 @@
 /*
 Author: PaskKat
-Date: 8/27/2026
+Date: 8/28/2026
 Board in Arduino IDE: ESP32 S3 Dev Module
 
 Purpose: 
@@ -79,11 +79,14 @@ struct beaconPacket_t{
   float parentChannel;
 };
 
-struct dataPacket_t{
-  uint8_t type = SENSOR_DATA;
+struct dataPacket_t {
+  uint8_t type;
   float temperature;
   float humidity;
   uint16_t soilMoisture;
+  // float windDirection;
+  // float windSpeed;
+  // float rainfall;
   unsigned long timestamp;
 };
 
@@ -92,6 +95,9 @@ struct aggPacket_t{
   float temperatures[MAX_SENSOR_NODES];
   float humidities[MAX_SENSOR_NODES];
   uint16_t soilMoistures[MAX_SENSOR_NODES];
+  // float windDirections[MAX_SENSOR_NODES];
+  // float windSpeeds[MAX_SENSOR_NODES];
+  // float rainfalls[MAX_SENSOR_NODES];
   unsigned long timestamps[MAX_SENSOR_NODES];
   uint8_t readingsCount;
 };
@@ -171,11 +177,13 @@ void getDataFromCoproc(void){
     header.trim();
     if (header == "SENSOR_DATA:") {
       // Get data from printline serial from coproc.
-      dataPacket.type         = SENSOR_DATA;
-      dataPacket.temperature  = COPROC_PORT.readStringUntil('\n').toFloat();
-      dataPacket.humidity     = COPROC_PORT.readStringUntil('\n').toFloat();
-      dataPacket.soilMoisture = COPROC_PORT.readStringUntil('\n').toInt();
-      dataPacket.timestamp    = COPROC_PORT.readStringUntil('\n').toInt();
+      dataPacket.temperature    = COPROC_PORT.readStringUntil('\n').toFloat();
+      dataPacket.humidity       = COPROC_PORT.readStringUntil('\n').toFloat();
+      dataPacket.soilMoisture   = COPROC_PORT.readStringUntil('\n').toInt();
+      // dataPacket.windDirection  = COPROC_PORT.readStringUntil('\n').toFloat();
+      // dataPacket.windSpeed      = COPROC_PORT.readStringUntil('\n').toFloat();
+      // dataPacket.rainfall       = COPROC_PORT.readStringUntil('\n').toFloat();
+      dataPacket.timestamp      = COPROC_PORT.readStringUntil('\n').toInt();
             
       DEBUG_PORT.println("Received data from coproc!");
       DEBUG_PORT.println("");

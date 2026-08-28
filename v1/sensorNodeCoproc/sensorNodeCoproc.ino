@@ -50,6 +50,14 @@ Adafruit_BME680 bme(&wirePort);     // I2C
 Adafruit_seesaw ss;                 // Soil sensor.
 // SFEWeatherMeterKit weatherMeterKit(windDirectionPin, windSpeedPin, rainfallPin); // SEN-15901
 
+// Packet types
+enum{
+  BEACON,
+  SENSOR_DATA,
+  AGG_DATA
+};
+
+// Packet defs
 struct dataPacket_t {
   uint8_t type;
   float temperature;
