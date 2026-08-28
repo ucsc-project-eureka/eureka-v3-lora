@@ -4,13 +4,12 @@ Date: 8/27/2026
 Board in Arduino IDE: ESP32 S3 Dev Module
 
 Purpose: 
---> Receive and upload aggregate data packets to server.
+--> Receive give-data commands and query sensor node coproc for sensor data.
 --> Transmit a beacon for a detemrined amount of wait time to initiate data aggregation.
 
 Hardware:
 --> Atmos Lab V3 board, or Heltec v3 ESP32-SX1262
---> Sensors used: N/A, only using the radio module.
---> Note: In case of bad initialization on radio: radio.begin(frequency, 125.0, 9, 7, 0x12, 10, 8, 1.6)
+--> Sensors used: N/A, this is the source code for the radio microcontroller.
 */ 
 
 // include the library
@@ -28,6 +27,11 @@ Hardware:
 #define LORA_MOSI  10
 
 #define DEBUG_PORT Serial
+#define COPROC_PORT Serial1
+// From Airwise's ESP32 UART connections.
+#define ESP_TX_PIN 43
+#define ESP_RX_PIN 44
+#define ESP_BAUD 9600
 
 #define RADIO_INIT_TIMEOUT 1000
 #define BEACON_TIMEOUT 10000      // For dev, initialized to every 10 seconds
@@ -35,6 +39,7 @@ Hardware:
 #define PUBLIC_CHANNEL 0
 #define SINK_CHANNEL 1
 #define MAX_SENSOR_NODES 6
+#define MAX_RANDOM 50
 
 // Defs --------------------------------------------------------------
 
@@ -47,8 +52,10 @@ enum{
 
 // state names
 enum{
-  TX_BEACON,
-  RECEIVE
+  RECEIVE,
+  WAIT,
+  GET_DATA,
+  TX_DATA
 };
 
 // Channel names.
@@ -101,7 +108,12 @@ beaconPacket_t recvBeaconPacket;
 dataPacket_t recvDataPacket;
 aggPacket_t recvAggPacket;
 
+dataPacket_t dataPacket;
+
 unsigned long sinkRoundCount = 0;
+unsigned long beaconTime;
+unsigned long jitter;
+bool sentPacket = false;
 
 // Helpers ------------------------------------------------------------------
 
@@ -143,10 +155,32 @@ void handleRecvPacket(void){
     // packet was successfully received
     packetType = getPacketType(byteArr);
   }
-  if (packetType == AGG_DATA){
-    memcpy(&recvAggPacket,byteArr, sizeof(aggPacket_t));
+  if (packetType == BEACON){
+    memcpy(&recvBeaconPacket, byteArr, sizeof(beaconPacket_t));
   }
   return;
+}
+
+void getDataFromCoproc(void){
+  // Trigger the coproc to send sensor data to ESP32.
+  COPROC_PORT.println("SENSOR_DATA");
+  // Wait a period to recieve data back. Wait for coproc to respond.
+  while(!(COPROC_PORT.available()));
+  if (COPROC_PORT.available() && !sentPacket) {
+    String header = COPROC_PORT.readStringUntil('\n');
+    header.trim();
+    if (header == "SENSOR_DATA:") {
+      // Get data from printline serial from coproc.
+      dataPacket.type         = SENSOR_DATA;
+      dataPacket.temperature  = COPROC_PORT.readStringUntil('\n').toFloat();
+      dataPacket.humidity     = COPROC_PORT.readStringUntil('\n').toFloat();
+      dataPacket.soilMoisture = COPROC_PORT.readStringUntil('\n').toInt();
+      dataPacket.timestamp    = COPROC_PORT.readStringUntil('\n').toInt();
+            
+      DEBUG_PORT.println("Received data from coproc!");
+      DEBUG_PORT.println("");
+    }
+  }
 }
 
 // MAIN --------------------------------------------------------------------------
@@ -154,59 +188,52 @@ void handleRecvPacket(void){
 void setup() {
   DEBUG_PORT.begin(115200);
   while(!DEBUG_PORT);
+  COPROC_PORT.begin(ESP_BAUD, SERIAL_8N1, ESP_RX_PIN, ESP_TX_PIN);
+  while(!COPROC_PORT);
   initializeRadio();                          // Initialized on public frequency.
   radio.setPacketReceivedAction(onDataRecv);
-  state = TX_BEACON;
+  radio.startReceive();
+  state = RECEIVE;
 }
 
-void loop(){
+void loop() {
   switch(state){
-    // transmitting state
-    case TX_BEACON:{
-      beaconPacket_t beacon{
-        .hopCount = 0, 
-        .roundCount = sinkRoundCount++,
-        .privateChannel = CHANNEL_FREQ[SINK_CHANNEL],
-        .parentChannel = CHANNEL_FREQ[PUBLIC_CHANNEL]};
-      radio.transmit((uint8_t*)&beacon,sizeof(beaconPacket_t));
-      lastSendTime = millis();
-      // set radio to sink channel.
-      myChannel = beacon.privateChannel;
+    case RECEIVE:{
+      if (recvFlag){
+        recvFlag = false;
+        handleRecvPacket();
+        if((packetType == BEACON) && (recvBeaconPacket.hopCount>0)){
+          beaconTime = millis();
+          myChannel = recvBeaconPacket.privateChannel;
+          radio.setFrequency(myChannel);
+          jitter = random(0, MAX_RANDOM);
+          state = WAIT;
+        }
+        else{
+        radio.startReceive(); // restart listening if interrupt blocks it.
+        }
+      }
+      break;
+    }
+    case WAIT:{
+      if (millis()-beaconTime > jitter){
+        state = GET_DATA;
+      }
+      break;
+    }
+    case GET_DATA:{
+      getDataFromCoproc();
+      state = TX_DATA;
+      break;
+    }
+    case TX_DATA:{
+      radio.transmit((uint8_t*)&dataPacket,sizeof(dataPacket_t));
+      myChannel = CHANNEL_FREQ[PUBLIC_CHANNEL];
       radio.setFrequency(myChannel);
       radio.startReceive();
       state = RECEIVE;
       break;
     }
-    // receiving state
-    case RECEIVE:{
-      if(millis() - lastSendTime > BEACON_TIMEOUT){
-        myChannel = CHANNEL_FREQ[PUBLIC_CHANNEL];
-        radio.setFrequency(myChannel);
-        state = TX_BEACON;
-      }
-      else if(recvFlag){
-        recvFlag = false;
-        handleRecvPacket();
-        if(packetType == AGG_DATA){
-            // interrupt already saved recvAggData
-            // for now, print all the data collected for each node to serial.
-            // in the future, send this data to server.
-            for (int i = 0; i<recvAggPacket.readingsCount;i++){
-              DEBUG_PORT.printf("\nReading for Sensor Node %d\n",i);
-              DEBUG_PORT.println("Temperature: ");
-              DEBUG_PORT.println(recvAggPacket.temperatures[i]);
-              DEBUG_PORT.println("Humidity: ");
-              DEBUG_PORT.println(recvAggPacket.humidities[i]);
-              DEBUG_PORT.println("Soil Moisture: ");
-              DEBUG_PORT.println(recvAggPacket.soilMoistures[i]);
-              DEBUG_PORT.println("Time Stamp: ");
-              DEBUG_PORT.println(recvAggPacket.timestamps[i]);
-            }
-        }
-        // set/stay in receive mode.
-        radio.startReceive();
-      }
-      break;
-    }
   }
 }
+
