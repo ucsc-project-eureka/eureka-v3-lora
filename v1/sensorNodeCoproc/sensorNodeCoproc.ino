@@ -6,10 +6,11 @@ Board in Arduino IDE: Arduino Zero (Native USB)
 Purpose: 
 --> Establish serial connection via UART Serial 1 with ESP32 Radio and SAMD21 coprocessor
 --> Initialize I2C connections to sensors and initialize sensors
+--> when prompted by radio, send latest data readings from sensors.
 
 Hardware:
 --> Atmos Lab V3 board
---> Sensors used: BME680, Adafruit Stemma Soil Sensor
+--> Sensors used: BME680, Adafruit Stemma Soil Sensor, SEN-15901 Wind Sensor
 */ 
 
 #include <Wire.h>
@@ -19,6 +20,7 @@ Hardware:
 // MODS
 #include <Adafruit_seesaw.h>
 #include "Adafruit_BME680.h"
+// #include "SparkFun_Weather_Meter_Kit_Arduino_Library.h"
 
 // Other setup pinouts --------------------------------------
 
@@ -34,6 +36,11 @@ Hardware:
 #define BME_MOSI 11
 #define BME_CS 10
 
+// Pins for Weather Carrier with SAMD-21 coproc Board
+// int windDirectionPin = A0;
+// int windSpeedPin = 3;
+// int rainfallPin = 2;
+
 // Reference values for sensor data processing.
 #define SEALEVELPRESSURE_HPA (1013.25)
 
@@ -41,21 +48,16 @@ Hardware:
 #define wirePort Wire               // I2C Bus port name.
 Adafruit_BME680 bme(&wirePort);     // I2C
 Adafruit_seesaw ss;                 // Soil sensor.
+// SFEWeatherMeterKit weatherMeterKit(windDirectionPin, windSpeedPin, rainfallPin); // SEN-15901
 
-// Packet definitions
-enum messageType : uint8_t {
-  DISCOVERY = 1,
-  JOIN_REQUEST,
-  TDMA_SCHEDULE,
-  SENSOR_DATA,
-  AGGREGATE_DATA
-};
-
-struct sensorDataPacket_t {
+struct dataPacket_t {
   uint8_t type;
   float temperature;
   float humidity;
   uint16_t soilMoisture;
+  // float windDirection;
+  // float windSpeed;
+  // float rainfall;
   unsigned long timestamp;
 };
 
@@ -100,7 +102,7 @@ void loop(){
     }
   }
   if (getDataFlag){
-    sensorDataPacket_t myData;
+    dataPacket_t myData;
     myData.type = SENSOR_DATA;
 
     // NOTE: this assumes parsing on the other side will pick up string data sent in this format.
@@ -111,11 +113,17 @@ void loop(){
     myData.temperature = bme.temperature;
     myData.humidity = bme.humidity;
     myData.soilMoisture = ss.touchRead(0); 
-
+    // myData.windDirection = weatherMeterKit.getWindDirection();
+    // myData.windSpeed = weatherMeterKit.getWindSpeed();
+    // myData.rainfall = weatherMeterKit.getTotalRainfall();
     myData.timestamp = currentTime;
+    
     ESP_PORT.println(myData.temperature);
     ESP_PORT.println(myData.humidity);
     ESP_PORT.println(myData.soilMoisture);
+    // ESP_PORT.println(myData.windDirection);
+    // ESP_PORT.println(myData.windSpeed);
+    // ESP_PORT.println(myData.rainfall);
     ESP_PORT.println(myData.timestamp);
     getDataFlag = false;
   }

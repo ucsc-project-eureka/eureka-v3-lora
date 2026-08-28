@@ -1,6 +1,6 @@
 /*
 Author: PaskKat
-Date: 8/27/2026
+Date: 8/28/2026
 Board in Arduino IDE: ESP32 S3 Dev Module
 
 Purpose: 
@@ -10,7 +10,6 @@ Purpose:
 Hardware:
 --> Atmos Lab V3 board, or Heltec v3 ESP32-SX1262
 --> Sensors used: N/A, only using the radio module.
---> Note: In case of bad initialization on radio: radio.begin(frequency, 125.0, 9, 7, 0x12, 10, 8, 1.6)
 */ 
 
 // include the library
@@ -72,11 +71,14 @@ struct beaconPacket_t{
   float parentChannel;
 };
 
-struct dataPacket_t{
-  uint8_t type = SENSOR_DATA;
+struct dataPacket_t {
+  uint8_t type;
   float temperature;
   float humidity;
   uint16_t soilMoisture;
+  // float windDirection;
+  // float windSpeed;
+  // float rainfall;
   unsigned long timestamp;
 };
 
@@ -85,6 +87,9 @@ struct aggPacket_t{
   float temperatures[MAX_SENSOR_NODES];
   float humidities[MAX_SENSOR_NODES];
   uint16_t soilMoistures[MAX_SENSOR_NODES];
+  // float windDirections[MAX_SENSOR_NODES];
+  // float windSpeeds[MAX_SENSOR_NODES];
+  // float rainfalls[MAX_SENSOR_NODES];
   unsigned long timestamps[MAX_SENSOR_NODES];
   uint8_t readingsCount;
 };
@@ -199,6 +204,12 @@ void loop(){
               DEBUG_PORT.println(recvAggPacket.humidities[i]);
               DEBUG_PORT.println("Soil Moisture: ");
               DEBUG_PORT.println(recvAggPacket.soilMoistures[i]);
+              // DEBUG_PORT.println("Wind Direction: ");
+              // DEBUG_PORT.println(recvAggPacket.windDirections[i]);
+              // DEBUG_PORT.println("Wind Speed: ");
+              // DEBUG_PORT.println(recvAggPacket.windSpeeds[i]);
+              // DEBUG_PORT.println("Rainfall: ");
+              // DEBUG_PORT.println(recvAggPacket.rainfalls[i]);
               DEBUG_PORT.println("Time Stamp: ");
               DEBUG_PORT.println(recvAggPacket.timestamps[i]);
             }
