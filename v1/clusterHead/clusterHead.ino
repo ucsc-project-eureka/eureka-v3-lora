@@ -1,15 +1,16 @@
 /*
 Author: PaskKat
-Date: 8/27/2026
+Date: 8/28/2026
 Board in Arduino IDE: ESP32 S3 Dev Module
 
 Purpose: 
---> Receive give-data commands and query sensor node coproc for sensor data.
---> Transmit a beacon for a detemrined amount of wait time to initiate data aggregation.
+--> Receives beacons and retransmits with an updated hopcount
+--> Receives data packets from sensor nodes and stitch it into aggregate packets
+--> transmits aggregate packets back to the sink and other cluster heads via a broadcast.
 
 Hardware:
 --> Atmos Lab V3 board, or Heltec v3 ESP32-SX1262
---> Sensors used: N/A, this is the source code for the radio microcontroller.
+--> Sensors used: N/A, this is the source code for the radio.
 */ 
 
 // include the library
@@ -35,6 +36,8 @@ Hardware:
 #define SINK_CHANNEL 1
 #define MAX_SENSOR_NODES 6
 #define MAX_RANDOM 50
+#define MAX_CLUSTER_HEADS 3
+#define TIME_PER_CLUSTER_HEAD 500
 
 // Defs --------------------------------------------------------------
 
@@ -47,10 +50,9 @@ enum{
 
 // state names
 enum{
-  RX,
-  WAIT,
-  GET_DATA,
-  TX_DATA
+  RECEIVE,
+  TX_BEACON,
+  TX_AGG_DATA
 };
 
 // Channel names.
@@ -109,6 +111,16 @@ beaconPacket_t recvBeaconPacket;
 dataPacket_t recvDataPacket;
 aggPacket_t recvAggPacket;
 
+unsigned long startTime;
+unsigned long reportTimeout;
+
+beaconPacket_t myBeaconPacket;
+dataPacket_t myDataPacket;
+aggPacket_t myAggPacket;
+float parentFrequency;
+float randomChannel;
+unsigned long level;
+int numPacketsRecv = 0;
 
 // Helpers ------------------------------------------------------------------
 
@@ -150,26 +162,120 @@ void handleRecvPacket(void){
     // packet was successfully received
     packetType = getPacketType(byteArr);
   }
-  if (packetType == BEACON){
-    memcpy(&recvBeaconPacket, byteArr, sizeof(beaconPacket_t));
+  switch(packetType){
+    case BEACON:{
+      memcpy(&recvBeaconPacket, byteArr, sizeof(beaconPacket_t));
+      break;
+    }
+    case SENSOR_DATA:{
+      memcpy(&recvDataPacket, byteArr, sizeof(dataPacket_t));
+      break;
+    }
+    case AGG_DATA:{
+      memcpy(&recvAggPacket, byteArr, sizeof(aggPacket_t));
+      break;
+    }
   }
-  return;
+}
+
+float getRandomChannel(void){
+  float chosenChannel = CHANNEL_FREQ[random(2,7)];
+  if(chosenChannel == parentFrequency){
+    while(chosenChannel == parentFrequency){
+      chosenChannel = CHANNEL_FREQ[random(2,7)];
+    }
+  }
+  return chosenChannel;
 }
 
 // MAIN --------------------------------------------------------------------------
 
-void setup() {
+void setup(){
   DEBUG_PORT.begin(115200);
   while(!DEBUG_PORT);
-  COPROC_PORT.begin(ESP_BAUD, SERIAL_8N1, ESP_PIN_RX, ESP_PIN_TX);
-  while(!COPROC_PORT);
   initializeRadio();                          // Initialized on public frequency.
   radio.setPacketReceivedAction(onDataRecv);
-  // Add final initialization here - NOT DONE
-
+  radio.startReceive();
+  state = RECEIVE;
 }
 
-void loop() {
-  // put your main code here, to run repeatedly:
-
+void loop(){
+  switch(state){
+    case RECEIVE:{
+      if(recvFlag){
+        switch(packetType){
+          case BEACON:{
+            memcpy(&myBeaconPacket, &recvBeaconPacket, sizeof(beaconPacket_t));
+            myBeaconPacket.hopCount = recvBeaconPacket.hopCount++;
+            parentFrequency = recvBeaconPacket.parentChannel;
+            randomChannel = getRandomChannel();
+            myBeaconPacket.parentChannel = recvBeaconPacket.privateChannel;
+            myBeaconPacket.privateChannel = randomChannel;
+            level = myBeaconPacket.hopCount;
+            reportTimeout = (MAX_CLUSTER_HEADS - level + 1)*TIME_PER_CLUSTER_HEAD;
+            startTime = millis();
+            state = TX_BEACON;
+            break;
+          }
+          case SENSOR_DATA:{
+            myAggPacket.temperatures[numPacketsRecv] = recvDataPacket.temperature;
+            myAggPacket.humidities[numPacketsRecv] = recvDataPacket.humidity;
+            myAggPacket.soilMoistures[numPacketsRecv] = recvDataPacket.soilMoisture;
+            // myAggPacket.windDirections[numPacketsRecv] = recvDataPacket.windDirection;
+            // myAggPacket.windSpeeds[numPacketsRecv] = recvDataPacket.windSpeed;
+            // myAggPacket.rainfalls[numPacketsRecv] = recvDataPacket.rainfall;
+            myAggPacket.timestamps[numPacketsRecv] = recvDataPacket.timestamp;
+            myAggPacket.readingsCount++;
+            numPacketsRecv ++;
+            radio.startReceive();
+            state = RECEIVE;
+            break;
+          }
+          case AGG_DATA:{
+            for(int i = 0; i<recvAggPacket.readingsCount;i++){
+              if(myAggPacket.readingsCount + 1 <= MAX_SENSOR_NODES){
+                // append another packet.
+                myAggPacket.temperatures[numPacketsRecv] = recvAggPacket.temperatures[i];
+                myAggPacket.humidities[numPacketsRecv] = recvAggPacket.humidities[i];
+                myAggPacket.soilMoistures[numPacketsRecv] = recvAggPacket.soilMoistures[i];
+                // myAggPacket.windDirections[numPacketsRecv] = recvAggPacket.windDirections[i];
+                // myAggPacket.windSpeeds[numPacketsRecv] = recvAggPacket.windSpeeds[i];
+                // myAggPacket.rainfalls[numPacketsRecv] = recvAggPacket.rainfalls[i];
+                myAggPacket.timestamps[numPacketsRecv] = recvAggPacket.timestamps[i];
+                myAggPacket.readingsCount++;
+                numPacketsRecv ++;
+              }
+            }
+            break;
+          }
+        }
+      }
+      else if(millis() - startTime > reportTimeout){
+        myChannel = parentFrequency;
+        radio.setFrequency(myChannel);
+        state = TX_AGG_DATA;
+      }
+      break;
+    }
+    case TX_BEACON:{
+      radio.transmit((uint8_t*)&myBeaconPacket,sizeof(beaconPacket_t));
+      myChannel = randomChannel;
+      radio.setFrequency(myChannel);
+      radio.startReceive();
+      state = RECEIVE;
+      break;
+    }
+    case TX_AGG_DATA:{
+      radio.transmit((uint8_t*)&myAggPacket,sizeof(aggPacket_t));
+      // refresh the slate.
+      numPacketsRecv = 0;
+      memset(&myAggPacket,0,sizeof(aggPacket_t));
+      // restart.
+      myChannel = CHANNEL_FREQ[PUBLIC_CHANNEL];
+      radio.setFrequency(myChannel);
+      radio.startReceive();
+      state = RECEIVE;
+      break;
+    }
+  }
 }
