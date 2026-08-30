@@ -86,6 +86,9 @@ void setup(){
   PORT->Group[0].DIRSET.reg = PORT_PA05;
   PORT->Group[0].OUTSET.reg = PORT_PA05;
 
+  DEBUG_PORT.begin(115200);
+  while(!DEBUG_PORT);
+  DEBUG_PORT.println("ESP32 pins pulled HIGH");
   // Get UART connecting coproc and esp32 online.
   ESP_PORT.begin(ESP_BAUD); // UART, coproc->esp32 and vice versa.
   while(!ESP_PORT);
@@ -133,6 +136,7 @@ void loop(){
     // ESP_PORT.println(myData.windSpeed);
     // ESP_PORT.println(myData.rainfall);
     ESP_PORT.println(myData.timestamp);
+    DEBUG_PORT.println("sent DATA");
     getDataFlag = false;
   }
 }

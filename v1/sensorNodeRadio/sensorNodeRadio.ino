@@ -147,9 +147,7 @@ void initializeRadio(void){
 
 // Given the received buffer, determine the type of packet based off first 4 bytes.
 uint8_t getPacketType(uint8_t recvPacket[]){
-  uint8_t pktType;
-  memcpy(&pktType,&recvPacket[0],sizeof(uint8_t));
-  return pktType;
+  return recvPacket[0];
 }
 
 void handleRecvPacket(void){
@@ -161,6 +159,7 @@ void handleRecvPacket(void){
     packetType = getPacketType(byteArr);
   }
   if (packetType == BEACON){
+    DEBUG_PORT.println("Got BEACON!");
     memcpy(&recvBeaconPacket, byteArr, sizeof(beaconPacket_t));
   }
   return;
