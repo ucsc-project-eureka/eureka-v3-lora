@@ -88,7 +88,7 @@ void setup(){
 
   DEBUG_PORT.begin(115200);
   while(!DEBUG_PORT);
-  DEBUG_PORT.println("ESP32 pins pulled HIGH");
+  DEBUG_PORT.println("DEBUG_PORT initialized, ESP32 pins pulled HIGH");
   // Get UART connecting coproc and esp32 online.
   ESP_PORT.begin(ESP_BAUD); // UART, coproc->esp32 and vice versa.
   while(!ESP_PORT);
@@ -113,6 +113,7 @@ void loop(){
     }
   }
   if (getDataFlag){
+    DEBUG_PORT.println("received GET_DATA command from radio");
     dataPacket_t myData;
     myData.type = SENSOR_DATA;
 

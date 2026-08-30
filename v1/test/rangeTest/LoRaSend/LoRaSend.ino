@@ -60,7 +60,7 @@ void initializeRadio(void){
   // initialize SX1262 at 915 MHz
   DEBUG_PORT.println("[SX1262] Initializing ... ");
   int state = radio.begin(915.0, 125.0, 9, 7, 0x12, 10, 8, 1.6);
-  DEBUG_PORT.println("Initialized to 434 Mhz!");
+  DEBUG_PORT.println("Initialized to 915 Mhz!");
 }
 
 // MAIN ---------------------------------------------------------------------

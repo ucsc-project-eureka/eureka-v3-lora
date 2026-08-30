@@ -63,7 +63,7 @@ const float CHANNEL_FREQ[] = {
 };
 
 // Packet types
-struct beaconPacket_t{
+struct __attribute__((packed)) beaconPacket_t{
   uint8_t type = BEACON;
   unsigned long hopCount;
   unsigned long roundCount;
@@ -71,7 +71,7 @@ struct beaconPacket_t{
   float parentChannel;
 };
 
-struct dataPacket_t {
+struct __attribute__((packed)) dataPacket_t{
   uint8_t type;
   float temperature;
   float humidity;
@@ -82,7 +82,7 @@ struct dataPacket_t {
   unsigned long timestamp;
 };
 
-struct aggPacket_t{
+struct __attribute__((packed)) aggPacket_t{
   uint8_t type = AGG_DATA;
   float temperatures[MAX_SENSOR_NODES];
   float humidities[MAX_SENSOR_NODES];
@@ -93,7 +93,6 @@ struct aggPacket_t{
   unsigned long timestamps[MAX_SENSOR_NODES];
   uint8_t readingsCount;
 };
-
 // Globals
 SX1262 radio = new Module(LORA_NSS, LORA_DIO1, LORA_NRST, LORA_BUSY);
 unsigned long lastSendTime;
@@ -172,11 +171,13 @@ void loop(){
     // transmitting state
     case TX_BEACON:{
       beaconPacket_t beacon{
+        .type = BEACON,
         .hopCount = 0, 
         .roundCount = sinkRoundCount++,
         .privateChannel = CHANNEL_FREQ[SINK_CHANNEL],
         .parentChannel = CHANNEL_FREQ[PUBLIC_CHANNEL]};
       radio.transmit((uint8_t*)&beacon,sizeof(beaconPacket_t));
+      recvFlag = false; // interrupt gets pulled whenever TX finished.
       lastSendTime = millis();
       DEBUG_PORT.println("sent BEACON!");
       // set radio to sink channel.

@@ -1,7 +1,7 @@
 /*
 Author: PaskKat
 Date: 8/28/2026
-Board in Arduino IDE: ESP32 S3 Dev Module
+Board in Arduino IDE: ESP32 S3 Dev Module (CDC On Boot Disabled)
 
 Purpose: 
 --> Receives beacons and retransmits with an updated hopcount
@@ -37,7 +37,7 @@ Hardware:
 #define MAX_SENSOR_NODES 6
 #define MAX_RANDOM 50
 #define MAX_CLUSTER_HEADS 3
-#define TIME_PER_CLUSTER_HEAD 500
+#define TIME_PER_CLUSTER_HEAD 1000
 
 // Defs --------------------------------------------------------------
 
@@ -68,7 +68,7 @@ const float CHANNEL_FREQ[] = {
 };
 
 // Packet types
-struct beaconPacket_t{
+struct __attribute__((packed)) beaconPacket_t{
   uint8_t type = BEACON;
   unsigned long hopCount;
   unsigned long roundCount;
@@ -76,7 +76,7 @@ struct beaconPacket_t{
   float parentChannel;
 };
 
-struct dataPacket_t {
+struct __attribute__((packed)) dataPacket_t {
   uint8_t type;
   float temperature;
   float humidity;
@@ -87,7 +87,7 @@ struct dataPacket_t {
   unsigned long timestamp;
 };
 
-struct aggPacket_t{
+struct __attribute__((packed)) aggPacket_t{
   uint8_t type = AGG_DATA;
   float temperatures[MAX_SENSOR_NODES];
   float humidities[MAX_SENSOR_NODES];
@@ -121,6 +121,7 @@ float parentFrequency;
 float randomChannel;
 unsigned long level;
 int numPacketsRecv = 0;
+bool beaconActive = false;
 
 // Helpers ------------------------------------------------------------------
 
@@ -134,8 +135,8 @@ void initializeRadio(void){
   // turn on power circuit pin GPIO 36. Wait for 50 milliseconds to stabilize voltage.
   pinMode(36, OUTPUT);
   digitalWrite(36, LOW);
-  int startTime = millis();
-  while(millis() - startTime <= RADIO_INIT_TIMEOUT);
+  int startUpTime = millis();
+  while(millis() - startUpTime <= RADIO_INIT_TIMEOUT);
 
   // open SPI connection between ESP32-v3 Heltec microcontroller and SX1262 IC.
   SPI.begin(LORA_SCK,LORA_MISO, LORA_MOSI, LORA_NSS);
@@ -154,22 +155,27 @@ uint8_t getPacketType(uint8_t recvPacket[]){
 
 void handleRecvPacket(void){
   byte byteArr[255];
+  packetType = -1;
   int state = radio.readData(byteArr, 0);
   int numBytes = radio.getPacketLength();
   if (state == RADIOLIB_ERR_NONE){
     // packet was successfully received
+    DEBUG_PORT.println("received packet, getting type...");
     packetType = getPacketType(byteArr);
   }
   switch(packetType){
     case BEACON:{
+      DEBUG_PORT.println("received BEACON packet!");
       memcpy(&recvBeaconPacket, byteArr, sizeof(beaconPacket_t));
       break;
     }
     case SENSOR_DATA:{
+      DEBUG_PORT.println("received SENSOR_DATA packet!");
       memcpy(&recvDataPacket, byteArr, sizeof(dataPacket_t));
       break;
     }
     case AGG_DATA:{
+      DEBUG_PORT.println("received AGG_DATA packet!");
       memcpy(&recvAggPacket, byteArr, sizeof(aggPacket_t));
       break;
     }
@@ -190,7 +196,8 @@ float getRandomChannel(void){
 
 void setup(){
   DEBUG_PORT.begin(115200);
-  while(!DEBUG_PORT);
+  delay(3000);
+  DEBUG_PORT.println("DEBUG_PORT initialized!");
   initializeRadio();                          // Initialized on public frequency.
   radio.setPacketReceivedAction(onDataRecv);
   radio.startReceive();
@@ -201,17 +208,20 @@ void loop(){
   switch(state){
     case RECEIVE:{
       if(recvFlag){
+        recvFlag = false;
+        handleRecvPacket();
         switch(packetType){
           case BEACON:{
             memcpy(&myBeaconPacket, &recvBeaconPacket, sizeof(beaconPacket_t));
-            myBeaconPacket.hopCount = recvBeaconPacket.hopCount++;
-            parentFrequency = recvBeaconPacket.parentChannel;
+            myBeaconPacket.hopCount = recvBeaconPacket.hopCount + 1;
+            parentFrequency = recvBeaconPacket.privateChannel;
             randomChannel = getRandomChannel();
             myBeaconPacket.parentChannel = recvBeaconPacket.privateChannel;
             myBeaconPacket.privateChannel = randomChannel;
             level = myBeaconPacket.hopCount;
             reportTimeout = (MAX_CLUSTER_HEADS - level + 1)*TIME_PER_CLUSTER_HEAD;
             startTime = millis();
+            beaconActive = true;
             state = TX_BEACON;
             break;
           }
@@ -226,6 +236,7 @@ void loop(){
             myAggPacket.readingsCount++;
             numPacketsRecv ++;
             radio.startReceive();
+            DEBUG_PORT.println("Added data from data packet into my AGG_DATA packet!");
             state = RECEIVE;
             break;
           }
@@ -248,7 +259,8 @@ void loop(){
           }
         }
       }
-      else if(millis() - startTime > reportTimeout){
+      else if(beaconActive && millis() - startTime > reportTimeout){
+        beaconActive = false;
         myChannel = parentFrequency;
         radio.setFrequency(myChannel);
         state = TX_AGG_DATA;
@@ -256,7 +268,10 @@ void loop(){
       break;
     }
     case TX_BEACON:{
+      myBeaconPacket.type = BEACON;
       radio.transmit((uint8_t*)&myBeaconPacket,sizeof(beaconPacket_t));
+      recvFlag = false;
+      DEBUG_PORT.println("re-transmitted BEACON!");
       myChannel = randomChannel;
       radio.setFrequency(myChannel);
       radio.startReceive();
@@ -264,7 +279,10 @@ void loop(){
       break;
     }
     case TX_AGG_DATA:{
+      myAggPacket.type = AGG_DATA;
       radio.transmit((uint8_t*)&myAggPacket,sizeof(aggPacket_t));
+      recvFlag = false;
+      DEBUG_PORT.println("transmitted AGG_PACKET!");
       // refresh the slate.
       numPacketsRecv = 0;
       memset(&myAggPacket,0,sizeof(aggPacket_t));

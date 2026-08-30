@@ -1,7 +1,7 @@
 /*
 Author: PaskKat
 Date: 8/28/2026
-Board in Arduino IDE: ESP32 S3 Dev Module
+Board in Arduino IDE: ESP32 S3 Dev Module (CDC On Boot Enabled)
 
 Purpose: 
 --> Receive give-data commands and query sensor node coproc for sensor data.
@@ -15,16 +15,14 @@ Hardware:
 // include the library
 #include <RadioLib.h>
 
-// Heltec V3 Pin Mappings
-#define LORA_NSS   8
-#define LORA_DIO1  14
-#define LORA_NRST  12
-#define LORA_BUSY  13
-
-// SPI connection pins from ESP32-v3 to SX1262
-#define LORA_SCK   9
-#define LORA_MISO  11
-#define LORA_MOSI  10
+// RAK3112 mappings
+#define LORA_NSS    7
+#define LORA_SCK    5
+#define LORA_MOSI   6
+#define LORA_MISO   3
+#define LORA_RESET  8
+#define LORA_BUSY   48
+#define LORA_DIO1   47
 
 #define DEBUG_PORT Serial
 #define COPROC_PORT Serial1
@@ -71,7 +69,8 @@ const float CHANNEL_FREQ[] = {
 };
 
 // Packet types
-struct beaconPacket_t{
+// Packets have to be packed so that cpp doesn't pad them an unknown amount and then ruin parsing.
+struct __attribute__((packed)) beaconPacket_t{
   uint8_t type = BEACON;
   unsigned long hopCount;
   unsigned long roundCount;
@@ -79,7 +78,7 @@ struct beaconPacket_t{
   float parentChannel;
 };
 
-struct dataPacket_t {
+struct __attribute__((packed)) dataPacket_t {
   uint8_t type;
   float temperature;
   float humidity;
@@ -90,7 +89,7 @@ struct dataPacket_t {
   unsigned long timestamp;
 };
 
-struct aggPacket_t{
+struct __attribute__((packed)) aggPacket_t{
   uint8_t type = AGG_DATA;
   float temperatures[MAX_SENSOR_NODES];
   float humidities[MAX_SENSOR_NODES];
@@ -103,7 +102,8 @@ struct aggPacket_t{
 };
 
 // Globals
-SX1262 radio = new Module(LORA_NSS, LORA_DIO1, LORA_NRST, LORA_BUSY);
+// RAK3112:
+SX1262 radio = new Module(LORA_NSS, LORA_DIO1, LORA_RESET, LORA_BUSY);
 unsigned long lastSendTime;
 float myChannel = CHANNEL_FREQ[PUBLIC_CHANNEL];
 
@@ -129,19 +129,16 @@ void IRAM_ATTR onDataRecv(){
 
 // Initialize and start up SX1262 Heltec ESP32 v3 at public channel MHz.
 void initializeRadio(void){
-  // turn on power circuit pin GPIO 36. Wait for 50 milliseconds to stabilize voltage.
-  pinMode(36, OUTPUT);
-  digitalWrite(36, LOW);
-  int startTime = millis();
-  while(millis() - startTime <= RADIO_INIT_TIMEOUT);
-
   // open SPI connection between ESP32-v3 Heltec microcontroller and SX1262 IC.
   SPI.begin(LORA_SCK,LORA_MISO, LORA_MOSI, LORA_NSS);
 
   // initialize SX1262 at public channel
   DEBUG_PORT.println("[SX1262] Initializing ... ");
-  int state = radio.begin(CHANNEL_FREQ[PUBLIC_CHANNEL], 125.0, 9, 7, 0x12, 10, 8, 1.6);
-  DEBUG_PORT.println("Initialized to public channel!");
+  int radioState = radio.begin(CHANNEL_FREQ[PUBLIC_CHANNEL], 125.0, 9, 7, 0x12, 10, 8, 1.6);
+  // RAK3112 special init():
+  radio.setDio2AsRfSwitch(true);
+  radio.setTCXO(1.6);
+  DEBUG_PORT.printf("\nInitialized to public channel! radioState: %d",radioState);
   return;
 }
 
@@ -151,12 +148,14 @@ uint8_t getPacketType(uint8_t recvPacket[]){
 }
 
 void handleRecvPacket(void){
+  DEBUG_PORT.println("Got a packet! Analyzing...");
   byte byteArr[255];
   int state = radio.readData(byteArr, 0);
   int numBytes = radio.getPacketLength();
   if (state == RADIOLIB_ERR_NONE){
     // packet was successfully received
     packetType = getPacketType(byteArr);
+    DEBUG_PORT.printf("Found packetType: %d",packetType);
   }
   if (packetType == BEACON){
     DEBUG_PORT.println("Got BEACON!");
@@ -166,10 +165,11 @@ void handleRecvPacket(void){
 }
 
 void getDataFromCoproc(void){
+  DEBUG_PORT.println("Getting data from coproc!");
   // Trigger the coproc to send sensor data to ESP32.
   COPROC_PORT.println("SENSOR_DATA");
   // Wait a period to recieve data back. Wait for coproc to respond.
-  while(!(COPROC_PORT.available()));
+  // while(!(COPROC_PORT.available()));
   if (COPROC_PORT.available()) {
     String header = COPROC_PORT.readStringUntil('\n');
     header.trim();
@@ -194,6 +194,7 @@ void getDataFromCoproc(void){
 void setup() {
   DEBUG_PORT.begin(115200);
   while(!DEBUG_PORT);
+  DEBUG_PORT.println("Radio debug initialized!");
   COPROC_PORT.begin(ESP_BAUD, SERIAL_8N1, ESP_RX_PIN, ESP_TX_PIN);
   while(!COPROC_PORT);
   initializeRadio();                          // Initialized on public frequency.
@@ -207,6 +208,7 @@ void loop() {
     case RECEIVE:{
       if (recvFlag){
         recvFlag = false;
+        DEBUG_PORT.println("got a packet! interrupt fired!");
         handleRecvPacket();
         if((packetType == BEACON) && (recvBeaconPacket.hopCount>0)){
           beaconTime = millis();
@@ -233,7 +235,10 @@ void loop() {
       break;
     }
     case TX_DATA:{
+      dataPacket.type = SENSOR_DATA;
       radio.transmit((uint8_t*)&dataPacket,sizeof(dataPacket_t));
+      recvFlag = false;
+      DEBUG_PORT.println("transmitted DATA_PACKET via radio!");
       myChannel = CHANNEL_FREQ[PUBLIC_CHANNEL];
       radio.setFrequency(myChannel);
       radio.startReceive();
