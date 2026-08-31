@@ -8,23 +8,24 @@ Purpose:
 --> Transmit back to the parent the data it collected.
 
 Hardware:
---> Atmos Lab V3 board, or Heltec v3 ESP32-SX1262
+--> Atmos Lab V2 board, or Heltec v3 ESP32-SX1262
 --> Sensors used: N/A, this is the source code for the radio microcontroller.
-// NOTE: P(collision) = 1 - (1 - ((n-1)A)/T)^n 
-        ; n = # nodes, A = pkt airtime (200ms), T = time window to transmit (MAX_RANDOM)
+--> NOTE: airtime for data packets ~200 ms
 */ 
 
 // include the library
 #include <RadioLib.h>
 
-// RAK3112 mappings
-#define LORA_NSS    7
-#define LORA_SCK    5
-#define LORA_MOSI   6
-#define LORA_MISO   3
-#define LORA_RESET  8
-#define LORA_BUSY   48
-#define LORA_DIO1   47
+// Heltec V3 Pin Mappings
+#define LORA_NSS   8
+#define LORA_DIO1  14
+#define LORA_NRST  12
+#define LORA_BUSY  13
+
+// SPI connection pins from ESP32-v3 to SX1262
+#define LORA_SCK   9
+#define LORA_MISO  11
+#define LORA_MOSI  10
 
 #define DEBUG_PORT Serial
 #define COPROC_PORT Serial1
@@ -39,7 +40,7 @@ Hardware:
 #define PUBLIC_CHANNEL 0
 #define SINK_CHANNEL 1
 #define MAX_SENSOR_NODES 6
-#define MAX_RANDOM 5000
+#define MAX_RANDOM 5000 
 
 // Defs --------------------------------------------------------------
 
@@ -104,8 +105,8 @@ struct __attribute__((packed)) aggPacket_t{
 };
 
 // Globals
-// RAK3112:
-SX1262 radio = new Module(LORA_NSS, LORA_DIO1, LORA_RESET, LORA_BUSY);
+// ESP32:
+SX1262 radio = new Module(LORA_NSS, LORA_DIO1, LORA_NRST, LORA_BUSY);
 unsigned long lastSendTime;
 float myChannel = CHANNEL_FREQ[PUBLIC_CHANNEL];
 
@@ -129,19 +130,22 @@ void IRAM_ATTR onDataRecv(){
   recvFlag = true;
 }
 
-// Initialize and start up SX1262 Heltec ESP32 v3 at public channel MHz.
+// Initialize and start up SX1262 Heltec ESP32 v3 at 434MHz.
 void initializeRadio(void){
+  // turn on power circuit pin GPIO 36. Wait for 50 milliseconds to stabilize voltage.
+  pinMode(36, OUTPUT);
+  digitalWrite(36, LOW);
+  int startTime = millis();
+  while(millis() - startTime <= RADIO_INIT_TIMEOUT);
+
   // open SPI connection between ESP32-v3 Heltec microcontroller and SX1262 IC.
   SPI.begin(LORA_SCK,LORA_MISO, LORA_MOSI, LORA_NSS);
 
-  // initialize SX1262 at public channel
+  // initialize SX1262 at 434 MHz
   DEBUG_PORT.println("[SX1262] Initializing ... ");
-  int radioState = radio.begin(CHANNEL_FREQ[PUBLIC_CHANNEL], 125.0, 9, 7, 0x12, 10, 8, 1.6);
-  // RAK3112 special init():
-  radio.setDio2AsRfSwitch(true);
-  radio.setTCXO(1.6);
-  DEBUG_PORT.printf("\nInitialized to public channel! radioState: %d",radioState);
-  return;
+  int state = radio.begin(915.0, 125.0, 9, 7, 0x12, 10, 8, 1.6);
+  DEBUG_PORT.printf("\nradio state: %d\n",state);
+  DEBUG_PORT.println("Initialized to 915 Mhz!");
 }
 
 // Given the received buffer, determine the type of packet based off first 4 bytes.
@@ -249,4 +253,3 @@ void loop() {
     }
   }
 }
-
