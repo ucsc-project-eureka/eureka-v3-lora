@@ -34,10 +34,10 @@ Hardware:
 
 #define PUBLIC_CHANNEL 0
 #define SINK_CHANNEL 1
-#define MAX_SENSOR_NODES 6
-#define MAX_RANDOM 50
+#define MAX_SENSOR_NODES 3
+#define MAX_RANDOM 5000
 #define MAX_CLUSTER_HEADS 3
-#define TIME_PER_CLUSTER_HEAD 1000
+#define TIME_PER_CLUSTER_HEAD 3000
 
 // Defs --------------------------------------------------------------
 

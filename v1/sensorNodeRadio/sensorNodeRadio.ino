@@ -38,7 +38,7 @@ Hardware:
 
 #define PUBLIC_CHANNEL 0
 #define SINK_CHANNEL 1
-#define MAX_SENSOR_NODES 6
+#define MAX_SENSOR_NODES 3
 #define MAX_RANDOM 5000
 
 // Defs --------------------------------------------------------------
@@ -171,7 +171,7 @@ void getDataFromCoproc(void){
   // Trigger the coproc to send sensor data to ESP32.
   COPROC_PORT.println("SENSOR_DATA");
   // Wait a period to recieve data back. Wait for coproc to respond.
-  // while(!(COPROC_PORT.available()));
+  while(!(COPROC_PORT.available()));
   if (COPROC_PORT.available()) {
     String header = COPROC_PORT.readStringUntil('\n');
     header.trim();

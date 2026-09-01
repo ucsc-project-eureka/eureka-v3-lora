@@ -29,11 +29,11 @@ Hardware:
 #define DEBUG_PORT Serial
 
 #define RADIO_INIT_TIMEOUT 1000
-#define BEACON_TIMEOUT 10000      // For dev, initialized to every 10 seconds
+#define BEACON_TIMEOUT 20000      // For dev, initialized to every 20 seconds
 
 #define PUBLIC_CHANNEL 0
 #define SINK_CHANNEL 1
-#define MAX_SENSOR_NODES 6
+#define MAX_SENSOR_NODES 3
 
 // Defs --------------------------------------------------------------
 

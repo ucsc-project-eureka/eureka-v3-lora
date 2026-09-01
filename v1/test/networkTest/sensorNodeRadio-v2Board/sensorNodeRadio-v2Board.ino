@@ -39,7 +39,7 @@ Hardware:
 
 #define PUBLIC_CHANNEL 0
 #define SINK_CHANNEL 1
-#define MAX_SENSOR_NODES 6
+#define MAX_SENSOR_NODES 3
 #define MAX_RANDOM 5000 
 
 // Defs --------------------------------------------------------------
@@ -143,7 +143,7 @@ void initializeRadio(void){
 
   // initialize SX1262 at 434 MHz
   DEBUG_PORT.println("[SX1262] Initializing ... ");
-  int state = radio.begin(915.0, 125.0, 9, 7, 0x12, 10, 8, 1.6);
+  int state = radio.begin(CHANNEL_FREQ[PUBLIC_CHANNEL], 125.0, 9, 7, 0x12, 10, 8, 1.6);
   DEBUG_PORT.printf("\nradio state: %d\n",state);
   DEBUG_PORT.println("Initialized to 915 Mhz!");
 }
@@ -175,7 +175,7 @@ void getDataFromCoproc(void){
   // Trigger the coproc to send sensor data to ESP32.
   COPROC_PORT.println("SENSOR_DATA");
   // Wait a period to recieve data back. Wait for coproc to respond.
-  // while(!(COPROC_PORT.available()));
+  while(!(COPROC_PORT.available()));
   if (COPROC_PORT.available()) {
     String header = COPROC_PORT.readStringUntil('\n');
     header.trim();
