@@ -29,11 +29,11 @@ Hardware:
 #define DEBUG_PORT Serial
 
 #define RADIO_INIT_TIMEOUT 1000
-#define BEACON_TIMEOUT 10000      // For dev, initialized to every 10 seconds
+#define BEACON_TIMEOUT 20000      // For dev, initialized to every 20 seconds
 
 #define PUBLIC_CHANNEL 0
 #define SINK_CHANNEL 1
-#define MAX_SENSOR_NODES 6
+#define MAX_SENSOR_NODES 3
 
 // Defs --------------------------------------------------------------
 
@@ -63,7 +63,7 @@ const float CHANNEL_FREQ[] = {
 };
 
 // Packet types
-struct beaconPacket_t{
+struct __attribute__((packed)) beaconPacket_t{
   uint8_t type = BEACON;
   unsigned long hopCount;
   unsigned long roundCount;
@@ -71,7 +71,7 @@ struct beaconPacket_t{
   float parentChannel;
 };
 
-struct dataPacket_t {
+struct __attribute__((packed)) dataPacket_t{
   uint8_t type;
   float temperature;
   float humidity;
@@ -82,7 +82,7 @@ struct dataPacket_t {
   unsigned long timestamp;
 };
 
-struct aggPacket_t{
+struct __attribute__((packed)) aggPacket_t{
   uint8_t type = AGG_DATA;
   float temperatures[MAX_SENSOR_NODES];
   float humidities[MAX_SENSOR_NODES];
@@ -93,7 +93,6 @@ struct aggPacket_t{
   unsigned long timestamps[MAX_SENSOR_NODES];
   uint8_t readingsCount;
 };
-
 // Globals
 SX1262 radio = new Module(LORA_NSS, LORA_DIO1, LORA_NRST, LORA_BUSY);
 unsigned long lastSendTime;
@@ -135,20 +134,23 @@ void initializeRadio(void){
 
 // Given the received buffer, determine the type of packet based off first 4 bytes.
 uint8_t getPacketType(uint8_t recvPacket[]){
-  uint8_t pktType;
-  memcpy(&pktType,&recvPacket[0],sizeof(uint8_t));
-  return pktType;
+  return recvPacket[0];
 }
 
 void handleRecvPacket(void){
+  DEBUG_PORT.println("Processing packet!");
   byte byteArr[255];
   int state = radio.readData(byteArr, 0);
   int numBytes = radio.getPacketLength();
+  DEBUG_PORT.println("data has been read");
   if (state == RADIOLIB_ERR_NONE){
     // packet was successfully received
+    DEBUG_PORT.println("packet successfully received");
     packetType = getPacketType(byteArr);
+    DEBUG_PORT.printf("\nget packetType finished, packetType: %d\n",packetType);
   }
   if (packetType == AGG_DATA){
+    DEBUG_PORT.println("Found packetType to be AGG_DATA");
     memcpy(&recvAggPacket,byteArr, sizeof(aggPacket_t));
   }
   return;
@@ -169,12 +171,15 @@ void loop(){
     // transmitting state
     case TX_BEACON:{
       beaconPacket_t beacon{
+        .type = BEACON,
         .hopCount = 0, 
         .roundCount = sinkRoundCount++,
         .privateChannel = CHANNEL_FREQ[SINK_CHANNEL],
         .parentChannel = CHANNEL_FREQ[PUBLIC_CHANNEL]};
       radio.transmit((uint8_t*)&beacon,sizeof(beaconPacket_t));
+      recvFlag = false; // interrupt gets pulled whenever TX finished.
       lastSendTime = millis();
+      DEBUG_PORT.println("sent BEACON!");
       // set radio to sink channel.
       myChannel = beacon.privateChannel;
       radio.setFrequency(myChannel);
@@ -190,9 +195,11 @@ void loop(){
         state = TX_BEACON;
       }
       else if(recvFlag){
+        DEBUG_PORT.println("Got packet!");
         recvFlag = false;
         handleRecvPacket();
         if(packetType == AGG_DATA){
+            DEBUG_PORT.println("it's an AGG_DATA!");
             // interrupt already saved recvAggData
             // for now, print all the data collected for each node to serial.
             // in the future, send this data to server.
