@@ -48,7 +48,7 @@ struct testPacket{
 SX1262 radio = new Module(LORA_NSS, LORA_DIO1, LORA_NRST, LORA_BUSY);
 volatile bool receivedFlag = false;
 int numRecv = 0;
-int avgRSSI;
+float avgRSSI;
 float PDR;
 int RSSIList[100];
 float RSSISum;
