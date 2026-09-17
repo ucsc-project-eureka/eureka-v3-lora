@@ -15,3 +15,6 @@ build/
 # Editor backups
 *~
 *.swp
+
+# Local credentials/config
+config.h

@@ -6,14 +6,17 @@ Board in Arduino IDE: ESP32 S3 Dev Module
 Purpose: 
 --> Receive and upload aggregate data packets to server.
 --> Transmit a beacon for a determined amount of wait time to initiate data aggregation.
+--> Upload received aggregate data to the backend via MQTT (WiFi).
 
 Hardware:
 --> Atmos Lab V3 board, or Heltec v3 ESP32-SX1262
 --> Sensors used: N/A, only using the radio module.
 */ 
 
-// include the library
 #include <RadioLib.h>
+#include <WiFi.h>
+#include <PubSubClient.h>
+#include "config.h"
 
 // Heltec V3 Pin Mappings
 #define LORA_NSS   8
@@ -107,6 +110,12 @@ aggPacket_t recvAggPacket;
 
 unsigned long sinkRoundCount = 0;
 
+// Network globals
+WiFiClient netClient;
+PubSubClient mqttClient(netClient);
+unsigned long lastNetAttemptMs = 0;
+unsigned long recordSeq = 0;
+
 // Helpers ------------------------------------------------------------------
 
 // Received packet interrupt
@@ -156,6 +165,69 @@ void handleRecvPacket(void){
   return;
 }
 
+// Non-blockingly bring WiFi up (and back up) without stalling the LoRa loop.
+void ensureWiFi(void){
+  if (WiFi.status() != WL_CONNECTED){
+    if (millis() - lastNetAttemptMs > MQTT_RECONNECT_MS){
+      lastNetAttemptMs = millis();
+      DEBUG_PORT.print("[WIFI] Connecting to ");
+      DEBUG_PORT.println(WIFI_SSID);
+      WiFi.mode(WIFI_STA);
+      WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    }
+  }
+}
+
+// Non-blockingly connect (and reconnect) the MQTT client on top of WiFi.
+void ensureMqtt(void){
+  if (WiFi.status() == WL_CONNECTED && !mqttClient.connected()){
+    if (millis() - lastNetAttemptMs > MQTT_RECONNECT_MS){
+      lastNetAttemptMs = millis();
+      char clientId[24];
+      snprintf(clientId, sizeof(clientId), "eurekasink%lu", (unsigned long)random(1000, 9999));
+      DEBUG_PORT.print("[MQTT] Connecting to ");
+      DEBUG_PORT.println(MQTT_BROKER_HOST);
+      if (mqttClient.connect(clientId, MQTT_USERNAME, MQTT_PASSWORD)){
+        DEBUG_PORT.println("[MQTT] Connected.");
+      } else {
+        DEBUG_PORT.printf("[MQTT] Connect failed, rc=%d\n", mqttClient.state());
+      }
+    }
+  }
+}
+
+// Upload the aggregate readings to the backend as JSON MQTT messages, one per
+// sensor node.
+void publishAggDataToServer(void){
+  if (!mqttClient.connected()){
+    DEBUG_PORT.println("[MQTT] Not connected, dropping AGG_DATA");
+    return;
+  }
+
+  for (int i = 0; i < recvAggPacket.readingsCount; i++){
+    unsigned long nodeId = (i < NUM_SENSOR_IDS) ? SENSOR_NODE_IDS[i] : (unsigned long)(i + 1);
+
+    char topic[64];
+    snprintf(topic, sizeof(topic), "%s/%lu", MQTT_BASE_TOPIC, nodeId);
+
+    char json[256];
+    snprintf(
+      json, sizeof(json),
+      "{\"protocol\":\"eureka\",\"message_type\":\"sensor_reading\","
+      "\"sink_id\":%lu,\"node_id\":%lu,\"record_id\":%lu,"
+      "\"sensor_epoch\":%lu,\"sink_received_millis\":%lu,"
+      "\"temperature\":%.2f,\"humidity\":%.2f,\"soil_moisture\":%u}",
+      SINK_NODE_ID, nodeId, recordSeq,
+      recvAggPacket.timestamps[i], (unsigned long)millis(),
+      recvAggPacket.temperatures[i], recvAggPacket.humidities[i],
+      recvAggPacket.soilMoistures[i]);
+
+    bool ok = mqttClient.publish(topic, json);
+    DEBUG_PORT.printf("[MQTT] %s -> %u bytes: %s\n", topic, (unsigned)strlen(json), ok ? "ok" : "FAILED");
+    recordSeq++;
+  }
+}
+
 // MAIN --------------------------------------------------------------------------
 
 void setup() {
@@ -163,10 +235,16 @@ void setup() {
   while(!DEBUG_PORT);
   initializeRadio();                          // Initialized on public frequency.
   radio.setPacketReceivedAction(onDataRecv);
+  mqttClient.setServer(MQTT_BROKER_HOST, MQTT_BROKER_PORT);
+  mqttClient.setBufferSize(512);
   state = TX_BEACON;
 }
 
 void loop(){
+  ensureWiFi();
+  ensureMqtt();
+  mqttClient.loop();
+
   switch(state){
     // transmitting state
     case TX_BEACON:{
@@ -201,8 +279,6 @@ void loop(){
         if(packetType == AGG_DATA){
             DEBUG_PORT.println("it's an AGG_DATA!");
             // interrupt already saved recvAggData
-            // for now, print all the data collected for each node to serial.
-            // in the future, send this data to server.
             for (int i = 0; i<recvAggPacket.readingsCount;i++){
               DEBUG_PORT.printf("\nReading for Sensor Node %d\n",i);
               DEBUG_PORT.println("Temperature: ");
@@ -220,6 +296,8 @@ void loop(){
               DEBUG_PORT.println("Time Stamp: ");
               DEBUG_PORT.println(recvAggPacket.timestamps[i]);
             }
+            // Upload the aggregate to the backend over MQTT.
+            publishAggDataToServer();
         }
         // set/stay in receive mode.
         radio.startReceive();

@@ -1,0 +1,25 @@
+#pragma once
+
+#include <stddef.h>
+#include <stdint.h>
+
+// WiFi ----------------------------------------------------------------------
+const char* const WIFI_SSID     = "YOUR_WIFI_SSID";
+const char* const WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
+
+// MQTT broker ---------------------------------------------------------------
+const char* const MQTT_BROKER_HOST = "mqtt.meshtastic.org";
+const uint16_t    MQTT_BROKER_PORT = 1883;
+const char* const MQTT_USERNAME    = "YOUR_MQTT_USER";
+const char* const MQTT_PASSWORD    = "YOUR_MQTT_PASS";
+
+const char* const MQTT_BASE_TOPIC = "msh/US/2/json/SensorData";
+
+// Sink's own numeric node ID. In EUREKA JSON messages this is sent as
+// "sink_id" so the backend knows which sink relayed the reading.
+const unsigned long SINK_NODE_ID = 1UL;
+
+const unsigned long SENSOR_NODE_IDS[] = { 1UL, 2UL, 3UL };
+constexpr size_t NUM_SENSOR_IDS = sizeof(SENSOR_NODE_IDS) / sizeof(SENSOR_NODE_IDS[0]);
+
+constexpr unsigned long MQTT_RECONNECT_MS = 5000;
