@@ -66,25 +66,30 @@ bool isCloseTo(float f1, float f2){
 }
 
 float getWindSpeed(){
+  DEBUG_PORT.println("getting windspeed...");
   rotationCount = 0;
   unsigned long windReadingStartTime = millis();
+  DEBUG_PORT.println(windReadingStartTime);
   uint16_t adsReading = ads.readADC_SingleEnded(2);
 
-  while(millis()-windReadingStartTime < WIND_MEASURE_PERIOD){
+  while(millis() - windReadingStartTime < WIND_MEASURE_PERIOD){
+    DEBUG_PORT.println(millis());
     uint16_t newReading = ads.readADC_SingleEnded(2);
     if(!isCloseTo(adsReading,newReading)&&(newReading > adsReading)){
       rotationCount++;
     }
     adsReading = newReading;
     }
-    float speed = rotationCount/3;
-    return speed;
-  }
+  float speed = rotationCount/3;
+  return speed;
+}
 
 float getWindDirection(){
   // Read from channel 1.
+  DEBUG_PORT.println("getting wind direction...");
   float windDirection;
   uint16_t adsReading = ads.readADC_SingleEnded(1);
+  DEBUG_PORT.println(adsReading);
   float voltage = adsReading * GAIN_ONE_CONVERSION_FACTOR;
   for(int i = 0; i<=COMPASS_DIRECTIONS;i++){
     if(isCloseTo(voltage,reading[i])){
@@ -106,7 +111,7 @@ void setup() {
   PORT->Group[0].OUTSET.reg = PORT_PA05;
 
   DEBUG_PORT.begin(115200);
-  while(!DEBUG_PORT);
+  delay(3000);
   DEBUG_PORT.println("Serial initialized");
   initADS();
   DEBUG_PORT.println("setup complete!");
