@@ -76,8 +76,8 @@ struct __attribute__((packed)) dataPacket_t{
   float temperature;
   float humidity;
   uint16_t soilMoisture;
-  // float windDirection;
-  // float windSpeed;
+  float windDirection;
+  float windSpeed;
   // float rainfall;
   unsigned long timestamp;
 };
@@ -87,8 +87,8 @@ struct __attribute__((packed)) aggPacket_t{
   float temperatures[MAX_SENSOR_NODES];
   float humidities[MAX_SENSOR_NODES];
   uint16_t soilMoistures[MAX_SENSOR_NODES];
-  // float windDirections[MAX_SENSOR_NODES];
-  // float windSpeeds[MAX_SENSOR_NODES];
+  float windDirections[MAX_SENSOR_NODES];
+  float windSpeeds[MAX_SENSOR_NODES];
   // float rainfalls[MAX_SENSOR_NODES];
   unsigned long timestamps[MAX_SENSOR_NODES];
   uint8_t readingsCount;
@@ -211,10 +211,10 @@ void loop(){
               DEBUG_PORT.println(recvAggPacket.humidities[i]);
               DEBUG_PORT.println("Soil Moisture: ");
               DEBUG_PORT.println(recvAggPacket.soilMoistures[i]);
-              // DEBUG_PORT.println("Wind Direction: ");
-              // DEBUG_PORT.println(recvAggPacket.windDirections[i]);
-              // DEBUG_PORT.println("Wind Speed: ");
-              // DEBUG_PORT.println(recvAggPacket.windSpeeds[i]);
+              DEBUG_PORT.println("Wind Direction: ");
+              DEBUG_PORT.println(recvAggPacket.windDirections[i]);
+              DEBUG_PORT.println("Wind Speed: ");
+              DEBUG_PORT.println(recvAggPacket.windSpeeds[i]);
               // DEBUG_PORT.println("Rainfall: ");
               // DEBUG_PORT.println(recvAggPacket.rainfalls[i]);
               DEBUG_PORT.println("Time Stamp: ");

@@ -85,8 +85,8 @@ struct __attribute__((packed)) dataPacket_t {
   float temperature;
   float humidity;
   uint16_t soilMoisture;
-  // float windDirection;
-  // float windSpeed;
+  float windDirection;
+  float windSpeed;
   // float rainfall;
   unsigned long timestamp;
 };
@@ -96,8 +96,8 @@ struct __attribute__((packed)) aggPacket_t{
   float temperatures[MAX_SENSOR_NODES];
   float humidities[MAX_SENSOR_NODES];
   uint16_t soilMoistures[MAX_SENSOR_NODES];
-  // float windDirections[MAX_SENSOR_NODES];
-  // float windSpeeds[MAX_SENSOR_NODES];
+  float windDirections[MAX_SENSOR_NODES];
+  float windSpeeds[MAX_SENSOR_NODES];
   // float rainfalls[MAX_SENSOR_NODES];
   unsigned long timestamps[MAX_SENSOR_NODES];
   uint8_t readingsCount;
@@ -180,8 +180,8 @@ void getDataFromCoproc(void){
       dataPacket.temperature    = COPROC_PORT.readStringUntil('\n').toFloat();
       dataPacket.humidity       = COPROC_PORT.readStringUntil('\n').toFloat();
       dataPacket.soilMoisture   = COPROC_PORT.readStringUntil('\n').toInt();
-      // dataPacket.windDirection  = COPROC_PORT.readStringUntil('\n').toFloat();
-      // dataPacket.windSpeed      = COPROC_PORT.readStringUntil('\n').toFloat();
+      dataPacket.windDirection  = COPROC_PORT.readStringUntil('\n').toFloat();
+      dataPacket.windSpeed      = COPROC_PORT.readStringUntil('\n').toFloat();
       // dataPacket.rainfall       = COPROC_PORT.readStringUntil('\n').toFloat();
       dataPacket.timestamp      = COPROC_PORT.readStringUntil('\n').toInt();
             

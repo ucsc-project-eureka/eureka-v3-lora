@@ -81,8 +81,8 @@ struct __attribute__((packed)) dataPacket_t {
   float temperature;
   float humidity;
   uint16_t soilMoisture;
-  // float windDirection;
-  // float windSpeed;
+  float windDirection;
+  float windSpeed;
   // float rainfall;
   unsigned long timestamp;
 };
@@ -92,8 +92,8 @@ struct __attribute__((packed)) aggPacket_t{
   float temperatures[MAX_SENSOR_NODES];
   float humidities[MAX_SENSOR_NODES];
   uint16_t soilMoistures[MAX_SENSOR_NODES];
-  // float windDirections[MAX_SENSOR_NODES];
-  // float windSpeeds[MAX_SENSOR_NODES];
+  float windDirections[MAX_SENSOR_NODES];
+  float windSpeeds[MAX_SENSOR_NODES];
   // float rainfalls[MAX_SENSOR_NODES];
   unsigned long timestamps[MAX_SENSOR_NODES];
   uint8_t readingsCount;
@@ -229,8 +229,8 @@ void loop(){
             myAggPacket.temperatures[numPacketsRecv] = recvDataPacket.temperature;
             myAggPacket.humidities[numPacketsRecv] = recvDataPacket.humidity;
             myAggPacket.soilMoistures[numPacketsRecv] = recvDataPacket.soilMoisture;
-            // myAggPacket.windDirections[numPacketsRecv] = recvDataPacket.windDirection;
-            // myAggPacket.windSpeeds[numPacketsRecv] = recvDataPacket.windSpeed;
+            myAggPacket.windDirections[numPacketsRecv] = recvDataPacket.windDirection;
+            myAggPacket.windSpeeds[numPacketsRecv] = recvDataPacket.windSpeed;
             // myAggPacket.rainfalls[numPacketsRecv] = recvDataPacket.rainfall;
             myAggPacket.timestamps[numPacketsRecv] = recvDataPacket.timestamp;
             myAggPacket.readingsCount++;
@@ -247,8 +247,8 @@ void loop(){
                 myAggPacket.temperatures[numPacketsRecv] = recvAggPacket.temperatures[i];
                 myAggPacket.humidities[numPacketsRecv] = recvAggPacket.humidities[i];
                 myAggPacket.soilMoistures[numPacketsRecv] = recvAggPacket.soilMoistures[i];
-                // myAggPacket.windDirections[numPacketsRecv] = recvAggPacket.windDirections[i];
-                // myAggPacket.windSpeeds[numPacketsRecv] = recvAggPacket.windSpeeds[i];
+                myAggPacket.windDirections[numPacketsRecv] = recvAggPacket.windDirections[i];
+                myAggPacket.windSpeeds[numPacketsRecv] = recvAggPacket.windSpeeds[i];
                 // myAggPacket.rainfalls[numPacketsRecv] = recvAggPacket.rainfalls[i];
                 myAggPacket.timestamps[numPacketsRecv] = recvAggPacket.timestamps[i];
                 myAggPacket.readingsCount++;
