@@ -30,11 +30,13 @@ Notes:
 // Defs and instantiation ---------------------------------------------------------
 
 #define DEBUG_PORT SerialUSB
-#define ADS_I2C_ADDRESS 0x43
+#define ADS_I2C_ADDRESS 0x48
 #define COMPASS_DIRECTIONS 16
 #define WIND_MEASURE_PERIOD 3000
 #define GAIN_ONE_CONVERSION_FACTOR 125.0e-6
-#define FLOAT_SIMILARITY_BOUNDARY 1.5e-2
+#define FLOAT_SIMILARITY_BOUNDARY 0.05
+#define DEBOUNCE_ERROR_INTERVAL 50
+#define MPH_PER_SWITCH_HZ 1.492
 #define TEST_TIMEOUT 5000
 
 Adafruit_ADS1115 ads;
@@ -54,7 +56,11 @@ int rotationCount;
 // Helpers -----------------------------------------------------------------------
 
 void initADS(){
-  ads.begin(ADS_I2C_ADDRESS);
+  bool foundI2C = ads.begin(ADS_I2C_ADDRESS);
+  if(!foundI2C){
+    DEBUG_PORT.println("I2C is not found at given address!");
+  }
+  else{DEBUG_PORT.println("I2C verified at that address!");}
   ads.setGain(GAIN_ONE);
   return;
 }
@@ -69,29 +75,36 @@ float getWindSpeed(){
   DEBUG_PORT.println("getting windspeed...");
   rotationCount = 0;
   unsigned long windReadingStartTime = millis();
-  DEBUG_PORT.println(windReadingStartTime);
-  uint16_t adsReading = ads.readADC_SingleEnded(2);
-
+  float adsReading = ads.readADC_SingleEnded(2) * GAIN_ONE_CONVERSION_FACTOR;
+  unsigned long lastNewReadingTime = millis();
   while(millis() - windReadingStartTime < WIND_MEASURE_PERIOD){
-    DEBUG_PORT.println(millis());
-    uint16_t newReading = ads.readADC_SingleEnded(2);
-    if(!isCloseTo(adsReading,newReading)&&(newReading > adsReading)){
-      rotationCount++;
+    float newReading = ads.readADC_SingleEnded(2) * GAIN_ONE_CONVERSION_FACTOR;
+    if(!isCloseTo(adsReading,newReading)&&
+        (newReading > adsReading)&&
+       (millis() - lastNewReadingTime >= DEBOUNCE_ERROR_INTERVAL)){
+        rotationCount++;
+        lastNewReadingTime = millis();
     }
     adsReading = newReading;
     }
-  float speed = rotationCount/3;
+  float speed = (rotationCount/3.0f) * MPH_PER_SWITCH_HZ;
   return speed;
+}
+
+float getWindDirVoltage(){
+  float v = -1.0;
+  int16_t adsReading = ads.readADC_SingleEnded(1);
+  v = adsReading * GAIN_ONE_CONVERSION_FACTOR;
+  return v;
 }
 
 float getWindDirection(){
   // Read from channel 1.
   DEBUG_PORT.println("getting wind direction...");
-  float windDirection;
-  uint16_t adsReading = ads.readADC_SingleEnded(1);
-  DEBUG_PORT.println(adsReading);
+  float windDirection = -1.0;
+  int16_t adsReading = ads.readADC_SingleEnded(1);
   float voltage = adsReading * GAIN_ONE_CONVERSION_FACTOR;
-  for(int i = 0; i<=COMPASS_DIRECTIONS;i++){
+  for(int i = 0; i<COMPASS_DIRECTIONS;i++){
     if(isCloseTo(voltage,reading[i])){
       windDirection = i * 22.5;
       break;
@@ -121,6 +134,7 @@ void loop() {
   // every 5 seconds
   if (millis() - lastTestTime >= TEST_TIMEOUT){
     float windSpeed = getWindSpeed();
+    // float windDirection = getWindDirection();
     float windDirection = getWindDirection();
     dataReady = true;
 
