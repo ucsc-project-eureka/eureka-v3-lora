@@ -14,6 +14,18 @@ Hardware:
 
 // include the library
 #include <RadioLib.h>
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <math.h>
+
+// Wi-Fi settings
+const char* WIFI_SSID = "NAME";
+const char* WIFI_PASS = "PASSWORD";
+
+const char* SERVER_URL = "http://172.20.10.2:8000/data";
+
+// Must match the backend's API_KEY
+const char* API_KEY = "changeme";
 
 // Heltec V3 Pin Mappings
 #define LORA_NSS   8
@@ -156,12 +168,103 @@ void handleRecvPacket(void){
   return;
 }
 
+/* JSON cannot contain NaN or infinity. */
+String jsonNumber(float value) {
+  if (!isfinite(value)) return "null";
+  return String(value, 4);
+}
+
+void uploadAggregate(const aggPacket_t& packet) {
+  /* Skip this upload if Wi-Fi is unavailable. */
+  if (WiFi.status() != WL_CONNECTED) {
+    DEBUG_PORT.println("[HTTP] Wi-Fi disconnected; upload skipped");
+    return;
+  }
+
+  /* Validate the count before accessing the arrays. */
+  if (packet.readingsCount > MAX_SENSOR_NODES) {
+    DEBUG_PORT.println("[HTTP] Invalid readingsCount");
+    return;
+  }
+
+  String body;
+  body.reserve(1200);
+
+  body = "{\"device_id\":\"sink-01\",\"data\":{\"readings_count\":";
+  body += String(packet.readingsCount);
+  body += ",\"readings\":[";
+
+  for (uint8_t i = 0; i < packet.readingsCount; i++) {
+    if (i > 0) body += ",";
+
+    body += "{\"sensor_index\":";
+    body += String(i);
+
+    body += ",\"temperature\":";
+    body += jsonNumber(packet.temperatures[i]);
+
+    body += ",\"humidity\":";
+    body += jsonNumber(packet.humidities[i]);
+
+    body += ",\"soil_moisture\":";
+    body += String(packet.soilMoistures[i]);
+
+    body += ",\"wind_direction\":";
+    body += jsonNumber(packet.windDirections[i]);
+
+    body += ",\"wind_speed\":";
+    body += jsonNumber(packet.windSpeeds[i]);
+
+    /* Preserve the sender's timestamp without assuming its units. */
+    body += ",\"timestamp_raw\":";
+    body += String(packet.timestamps[i]);
+
+    body += "}";
+  }
+
+  body += "]}}";
+
+  WiFiClient connection;
+  HTTPClient http;
+
+  http.setConnectTimeout(3000);
+  http.setTimeout(5000);
+
+  if (!http.begin(connection, SERVER_URL)) {
+    DEBUG_PORT.println("[HTTP] Could not initialize request");
+    return;
+  }
+
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("X-API-Key", API_KEY);
+
+  int code = http.POST(body);
+
+  if (code > 0) {
+    DEBUG_PORT.printf("[HTTP] %d: %s\n",
+                      code, http.getString().c_str());
+  } else {
+    DEBUG_PORT.printf("[HTTP] Failed: %s\n",
+                      HTTPClient::errorToString(code).c_str());
+  }
+
+  http.end();
+}
+
 // MAIN --------------------------------------------------------------------------
 
 void setup() {
   DEBUG_PORT.begin(115200);
-  while(!DEBUG_PORT);
-  initializeRadio();                          // Initialized on public frequency.
+
+  /* Allow startup without opening Serial Monitor. */
+  delay(1000);
+
+  /* Connect in the background rather than blocking LoRa startup. */
+  WiFi.mode(WIFI_STA);
+  WiFi.setAutoReconnect(true);
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
+
+  initializeRadio();
   radio.setPacketReceivedAction(onDataRecv);
   state = TX_BEACON;
 }
@@ -220,6 +323,9 @@ void loop(){
               DEBUG_PORT.println("Time Stamp: ");
               DEBUG_PORT.println(recvAggPacket.timestamps[i]);
             }
+
+            // Upload aggregate
+            uploadAggregate(recvAggPacket);
         }
         // set/stay in receive mode.
         radio.startReceive();
