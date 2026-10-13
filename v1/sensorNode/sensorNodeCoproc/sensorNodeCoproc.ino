@@ -20,6 +20,7 @@ Hardware:
 // MODS
 #include <Adafruit_seesaw.h>
 #include "Adafruit_BME680.h"
+#include <Adafruit_ADS1X15.h>
 // #include "SparkFun_Weather_Meter_Kit_Arduino_Library.h"
 
 // Other setup pinouts --------------------------------------
@@ -51,6 +52,8 @@ Hardware:
 #define wirePort Wire               // I2C Bus port name.
 Adafruit_BME680 bme(&wirePort);     // I2C
 Adafruit_seesaw ss;                 // Soil sensor.
+Adafruit_ADS1115 ads;
+
 // SFEWeatherMeterKit weatherMeterKit(windDirectionPin, windSpeedPin, rainfallPin); // SEN-15901
 
 // Packet types
@@ -72,6 +75,7 @@ struct dataPacket_t {
   unsigned long timestamp;
 };
 
+int rotationCount;
 // Gen Defs
 const float reading[COMPASS_DIRECTIONS] //map of 16 digital voltage values, 0-360 degrees by intervals of 22.5 degrees.
   = {2.899, 2.036, 2.184, 0.947, 0.985, 0.872, 1.337, 1.119, 1.684, 1.545, 2.585, 2.517, 3.177, 2.976, 3.080, 2.738};
@@ -100,6 +104,7 @@ float getWindSpeed(){
   float adsReading = ads.readADC_SingleEnded(2) * GAIN_ONE_CONVERSION_FACTOR;
   unsigned long lastNewReadingTime = millis();
   while(millis() - windReadingStartTime < WIND_MEASURE_PERIOD){
+    // update debounce protocol with histerisis
     float newReading = ads.readADC_SingleEnded(2) * GAIN_ONE_CONVERSION_FACTOR;
     if(!isCloseTo(adsReading,newReading)&&
         (newReading > adsReading)&&
@@ -109,7 +114,7 @@ float getWindSpeed(){
     }
     adsReading = newReading;
     }
-  float speed = (rotationCount/3.0f) * MPH_PER_SWITCH_HZ;
+  float speed = (rotationCount/(WIND_MEASURE_PERIOD/1000.0f)) * MPH_PER_SWITCH_HZ;
   return speed;
 }
 
